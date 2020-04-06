@@ -7,8 +7,8 @@
 #include "i2c_master.h"
 #include "font8x8.h"
 
-#define NUM_COLS  16
-#define NUM_ROWS  2
+#define NUM_COLS  MAX_LCD_LINE_LEN
+#define NUM_ROWS  LCD_NUM_LINES
 #define NUM_CHARS NUM_COLS * NUM_ROWS
 
 static uint8_t _addr; // I2C address
@@ -119,7 +119,6 @@ void lcd_noBacklight() {
   
 }
 
-
 void write_raw(uint8_t value, uint8_t cursor) {
   uint8_t i, v, col;
   uint8_t c = value - 32;
@@ -141,6 +140,8 @@ void write_raw(uint8_t value, uint8_t cursor) {
   }
   i2c_stop();
 }
+
+
 
 void lcd_setCursor(uint8_t col, uint8_t row)
 {
