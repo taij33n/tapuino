@@ -143,6 +143,18 @@ void lcd_status_P(const char* msg) {
   lcd_line((char*)msg, 1, 1);
 }
 
+void lcd_show_idx(uint32_t counter, uint32_t idx) {
+  memset(g_char_buffer, 32, MAX_LCD_LINE_LEN);
+  sprintf((char*)g_char_buffer, "%04d", counter);
+  lcd_setCursor(0, 2);
+  lcd_print(g_char_buffer);
+  
+  memset(g_char_buffer, 32, MAX_LCD_LINE_LEN);
+  sprintf((char*)g_char_buffer, "$%12lx", idx);
+  lcd_setCursor(0, 3);
+  lcd_print(g_char_buffer);
+}
+
 void lcd_setup() {
   lcd_init(LCD_I2C_ADDR);
   lcd_backlight();
