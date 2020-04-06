@@ -102,6 +102,19 @@ volatile uint8_t g_rec_auto_finalize = 1;
 
 volatile uint8_t g_is_paused = 0;
 
+// counter calc: vice emu
+///
+#define PI          3.1415926535
+#define DS_D        1.27e-5
+#define DS_R        1.07e-2
+#define DS_V_PLAY   4.76e-2
+#define DS_G        0.525
+
+static const double ds_c1 = DS_V_PLAY / DS_D / PI;
+static const double ds_c2 = (DS_R * DS_R) / (DS_D * DS_D);
+static const double ds_c3 = DS_R / DS_D;
+static long g_pulse_length_counter = 0;
+
 void setup_cycle_timing() {
   double ntsc_cycles_per_second;
   double pal_cycles_per_second;
@@ -125,6 +138,7 @@ void setup_cycle_timing() {
   switch(g_video_mode)
   {
     case PAL:
+    // 1 mhz = 1000000.0
       g_cycle_mult_raw = (1000000.0 / pal_cycles_per_second);
     break;
     case NSTC:
@@ -165,6 +179,7 @@ ISR(TIMER1_CAPT_vect) {
       g_fat_buffer[g_read_index++] = (uint8_t) ((tap_data & 0xff0000) >> 16);
       g_tap_file_pos += 4;
     }
+
   } else {
     // if this is the first time in, zero the count, otherwise the count starts at the high edge of the signal in the code above
     g_signal_2nd_half = 1;
@@ -263,6 +278,12 @@ ISR(TIMER1_COMPA_vect) {
         // format 2 is half-wave and timer is running at 2Mhz so double
         g_pulse_length_save <<= 1;
       }
+
+      
+//----
+      g_pulse_length_counter += g_pulse_length;
+
+//-----    
       
       if (g_pulse_length > 0xFFFF) {        // check to see if its bigger than 16 bits
         g_pulse_length -= 0xFFFF;
@@ -378,6 +399,8 @@ int verify_tap(FILINFO* pfile_info) {
   return 1;
 }
 
+
+
 int play_file(FILINFO* pfile_info)
 {
   UINT br;
@@ -398,6 +421,8 @@ int play_file(FILINFO* pfile_info)
   g_signal_2nd_half = 0;
   g_is_paused = 0;
 
+  g_pulse_length_counter = 0 ;
+
   lcd_title_P(S_LOADING);
 
   if (g_invert_signal) {
@@ -415,6 +440,12 @@ int play_file(FILINFO* pfile_info)
       // feedback to the user
       lcd_spinner(g_timer_tick, perc);
 
+// Counter is c=g*(sqrt(v*t/d*pi+r^2/d^2)-r/d)
+// taken from vice emu
+      int counter = (int) (DS_G * (sqrt( ( g_pulse_length_counter / 985248 * ds_c1) + ds_c2) - ds_c3)) % 1000;
+      lcd_show_idx(counter, g_tap_file_pos & 0xffffff);
+
+
       // for multiload games we need to remove the previous timeout fix
       // (checking against g_total_timer_count > MAX_SIGNAL_CYCLES) and look for 
       // g_tap_file_complete instead.
@@ -425,6 +456,20 @@ int play_file(FILINFO* pfile_info)
       if (g_cur_command == COMMAND_SELECT) {
         g_cur_command = COMMAND_IDLE;
         g_is_paused = !g_is_paused;
+
+        if (!g_is_paused) {
+          f_lseek(&g_fil, g_tap_file_pos);
+        }
+      }
+
+        if (g_cur_command == COMMAND_NEXT) {
+        g_cur_command = COMMAND_IDLE;
+        g_is_paused = true;
+      }
+
+        if (g_cur_command == COMMAND_PREVIOUS) {
+        g_cur_command = COMMAND_IDLE;
+        g_is_paused = true;
       }
     }
 
@@ -432,6 +477,8 @@ int play_file(FILINFO* pfile_info)
     if (g_tap_file_complete) {
       break;
     }
+
+
     
     f_read(&g_fil, (void*) g_fat_buffer + g_write_index, 128, &br);
     g_write_index += 128;
@@ -480,6 +527,7 @@ int play_file(FILINFO* pfile_info)
 
 
 void record_file(char* pfile_name) {
+  return;
   FRESULT res;
   UINT br;
   uint32_t tmp = 0;
@@ -694,19 +742,9 @@ int tapuino_hardware_setup(void)
   // recording led (Arduino: D2, Atmel: PD2)
   REC_LED_DDR |= _BV(REC_LED_PIN);
   REC_LED_OFF();
-  
-  // keys are all inputs, activate pullups
-  KEYS_READ_DDR &= ~_BV(KEY_SELECT_PIN);
-  KEYS_READ_PORT |= _BV(KEY_SELECT_PIN);
 
-  KEYS_READ_DDR &= ~_BV(KEY_ABORT_PIN);
-  KEYS_READ_PORT |= _BV(KEY_ABORT_PIN);
-
-  KEYS_READ_DDR &= ~_BV(KEY_PREV_PIN);
-  KEYS_READ_PORT |= _BV(KEY_PREV_PIN);
-
-  KEYS_READ_DDR &= ~_BV(KEY_NEXT_PIN);
-  KEYS_READ_PORT |= _BV(KEY_NEXT_PIN);
+    // comms.c
+  comms_setup();
   
   disk_timer_setup();
   
