@@ -92,6 +92,12 @@
 #define KEY_PREV_PIN        1
 #define KEY_NEXT_PIN        0
 
+#if defined(USE_ROTARY_ENCODER)
+#define rotarySwitch A1
+#define rotaryCLK    A2
+#define rotaryDT     A3
+#endif
+
 // debugging
 //#define ENABLE_SERIAL
 
